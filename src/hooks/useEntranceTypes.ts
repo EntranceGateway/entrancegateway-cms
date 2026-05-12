@@ -12,13 +12,14 @@ export function useEntranceTypes() {
         setError(null);
 
         try {
-            const result = await entranceTypeService.getEntranceTypes();
+            const result = await entranceTypeService.getEntranceTypes({ silent: false });
             
             // Transform API response to UI type
             const transformedTypes: EntranceType[] = result.map(type => ({
                 id: type.entranceTypeId,
+                slug: type.slug,
                 entranceName: type.entranceName,
-                description: type.description,
+                description: type.description || '',
                 hasNegativeMarking: type.hasNegativeMarking,
                 negativeMarkingValue: type.negativeMarkingValue,
             }));

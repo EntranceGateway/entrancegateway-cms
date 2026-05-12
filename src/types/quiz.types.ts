@@ -69,14 +69,16 @@ export interface CourseFormData {
 // ─── Entrance Type ───────────────────────────────────────────────
 export interface EntranceTypeApiResponse {
     entranceTypeId: number;
+    slug: string;
     entranceName: string;
-    description: string;
+    description: string | null;
     hasNegativeMarking: boolean;
     negativeMarkingValue: number;
 }
 
 export interface EntranceType {
     id: number;
+    slug: string;
     entranceName: string;
     description: string;
     hasNegativeMarking: boolean;
@@ -238,9 +240,9 @@ export interface QuizTemplateFormErrors {
 export interface OptionApiResponse {
     optionId: number;
     optionText: string;
-    optionImageUrl: string | null;
+    optionImage: string | null;
     optionOrder: number;
-    correct: boolean;
+    isCorrect: boolean;
 }
 
 export interface Option {
@@ -265,6 +267,8 @@ export interface QuestionApiResponse {
     categoryName: string;
     questionSetId: number;
     questionSetTitle: string;
+    topicId: string | null;
+    topicName: string | null;
     mcqImage: string | null;
     options: OptionApiResponse[];
 }
@@ -278,6 +282,10 @@ export interface Question {
         id: number;
         categoryName: string;
     };
+    topic: {
+        id: string;
+        name: string;
+    } | null;
     options: Option[];
 }
 
@@ -286,6 +294,8 @@ export interface QuestionFormData {
     marks: number;
     categoryId: number | null;
     questionSetId: number;
+    topicId: string | null;
+    topicName: string | null;
     options: OptionFormData[];
 }
 

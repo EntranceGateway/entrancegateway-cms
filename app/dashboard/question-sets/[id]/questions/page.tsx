@@ -41,6 +41,8 @@ export default function QuestionsPage() {
     marks: 1,
     categoryId: null,
     questionSetId: questionSetId,
+    topicId: null,
+    topicName: null,
     options: [
       { optionText: '', optionOrder: 0, correct: false },
       { optionText: '', optionOrder: 1, correct: false },
@@ -87,6 +89,8 @@ export default function QuestionsPage() {
       marks: 1,
       categoryId: null,
       questionSetId: questionSetId,
+      topicId: null,
+      topicName: null,
       options: [
         { optionText: '', optionOrder: 0, correct: false },
         { optionText: '', optionOrder: 1, correct: false },

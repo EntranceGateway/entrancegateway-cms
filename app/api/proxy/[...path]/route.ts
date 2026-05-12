@@ -60,10 +60,12 @@ async function proxyRequest(
       'categories',
       'courses', 
       'entrance-types',
+      'purchases',
       'question-sets',
       'questions',
       'quiz-attempts',
       'quiz-templates',
+      'topics',
       'dashboard'
     ];
     

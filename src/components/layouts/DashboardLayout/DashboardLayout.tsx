@@ -18,6 +18,7 @@ const navItems: NavItem[] = [
   { label: 'Old Questions', href: '/dashboard/old-questions', icon: 'history_edu' },
   { label: 'Categories', href: '/dashboard/categories', icon: 'category' },
   { label: 'Entrance Types', href: '/dashboard/entrance-types', icon: 'school' },
+  { label: 'Topics', href: '/dashboard/topics', icon: 'topic' },
   { 
     label: 'Quiz', 
     icon: 'quiz',

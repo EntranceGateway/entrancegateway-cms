@@ -12,7 +12,7 @@ export function useQuestions(questionSetId: number) {
         setError(null);
 
         try {
-            const result = await questionService.getQuestionsBySet(questionSetId);
+            const result = await questionService.getQuestionsBySet(questionSetId, { silent: false });
             
             // Transform API response to UI type
             const transformedQuestions: Question[] = result.map(q => ({
@@ -24,12 +24,16 @@ export function useQuestions(questionSetId: number) {
                     id: q.categoryId,
                     categoryName: q.categoryName,
                 },
+                topic: q.topicId ? {
+                    id: q.topicId,
+                    name: q.topicName || '',
+                } : null,
                 options: q.options.map(opt => ({
                     id: opt.optionId,
                     optionText: opt.optionText,
                     optionOrder: opt.optionOrder,
-                    correct: opt.correct,
-                    optionImageName: opt.optionImageUrl,
+                    correct: opt.isCorrect,
+                    optionImageName: opt.optionImage,
                 })),
             }));
             
