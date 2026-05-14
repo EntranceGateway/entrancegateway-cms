@@ -57,17 +57,21 @@ export default function CategoriesPage() {
     e.preventDefault();
     setSubmitting(true);
 
-    const success = await categoryService.createCategory(formData);
+    try {
+      const result = await categoryService.createCategory(formData);
 
-    if (success) {
-      toast.success('Category created successfully');
-      setShowCreateModal(false);
-      refetch();
-    } else {
-      toast.error('Failed to create category');
+      if (result.success) {
+        toast.success('Category created successfully');
+        setShowCreateModal(false);
+        refetch();
+      } else {
+        toast.error(result.error || 'Failed to create category');
+      }
+    } catch {
+      toast.error('An unexpected error occurred');
+    } finally {
+      setSubmitting(false);
     }
-
-    setSubmitting(false);
   };
 
   const handleSubmitEdit = async (e: React.FormEvent) => {
@@ -76,17 +80,21 @@ export default function CategoriesPage() {
 
     setSubmitting(true);
 
-    const success = await categoryService.updateCategory(selectedCategory.id, formData);
+    try {
+      const result = await categoryService.updateCategory(selectedCategory.id, formData);
 
-    if (success) {
-      toast.success('Category updated successfully');
-      setShowEditModal(false);
-      refetch();
-    } else {
-      toast.error('Failed to update category');
+      if (result.success) {
+        toast.success('Category updated successfully');
+        setShowEditModal(false);
+        refetch();
+      } else {
+        toast.error(result.error || 'Failed to update category');
+      }
+    } catch {
+      toast.error('An unexpected error occurred');
+    } finally {
+      setSubmitting(false);
     }
-
-    setSubmitting(false);
   };
 
   const handleConfirmDelete = async () => {
@@ -94,17 +102,21 @@ export default function CategoriesPage() {
 
     setDeleting(true);
 
-    const success = await categoryService.deleteCategory(selectedCategory.id);
+    try {
+      const result = await categoryService.deleteCategory(selectedCategory.id);
 
-    if (success) {
-      toast.success('Category deleted successfully');
-      setShowDeleteModal(false);
-      refetch();
-    } else {
-      toast.error('Failed to delete category');
+      if (result.success) {
+        toast.success('Category deleted successfully');
+        setShowDeleteModal(false);
+        refetch();
+      } else {
+        toast.error(result.error || 'Failed to delete category');
+      }
+    } catch {
+      toast.error('An unexpected error occurred');
+    } finally {
+      setDeleting(false);
     }
-
-    setDeleting(false);
   };
 
   const columns = [
