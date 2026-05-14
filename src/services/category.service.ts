@@ -6,6 +6,17 @@ import type {
 } from '@/types/quiz.types';
 import type { ApiError } from '@/types/api.types';
 
+/**
+ * Safely extract an error message from an unknown caught value.
+ */
+function extractErrorMessage(error: unknown, fallback: string): string {
+    if (error && typeof error === 'object') {
+        const err = error as Partial<ApiError>;
+        return err.message || fallback;
+    }
+    return fallback;
+}
+
 class CategoryService {
     private readonly endpoint = '/categories';
 
@@ -18,6 +29,8 @@ class CategoryService {
         const qs = queryParams.toString();
         return qs ? `?${qs}` : '';
     }
+
+    // ── GET /categories/admin (paginated, admin-only) ─────────────
 
     async getCategories(params: PaginatedQueryParams = {}): Promise<{
         categories: CategoryApiResponse[];
@@ -40,7 +53,7 @@ class CategoryService {
                 pageNumber: number;
                 pageSize: number;
                 last: boolean;
-            }>(`${this.endpoint}${queryString}`);
+            }>(`${this.endpoint}/admin${queryString}`);
 
             if (!response || !response.data) {
                 throw new Error('Invalid response format');
@@ -57,7 +70,9 @@ class CategoryService {
                 isLast: last,
             };
         } catch (error) {
-            console.error('Failed to fetch categories:', error);
+            if (process.env.NODE_ENV !== 'production') {
+                console.error('Failed to fetch categories:', error);
+            }
             return {
                 categories: [],
                 totalElements: 0,
@@ -68,6 +83,62 @@ class CategoryService {
             };
         }
     }
+
+    // ── GET /categories/admin/{id} (admin-only) ───────────────────
+
+    async getCategoryById(
+        id: number,
+        options: { silent?: boolean } = { silent: true },
+    ): Promise<CategoryApiResponse | null> {
+        try {
+            const response = await apiClient.get<CategoryApiResponse>(
+                `${this.endpoint}/admin/${id}`
+            );
+
+            if (!response?.data) {
+                throw { message: 'Category not found', status: 404 } as ApiError;
+            }
+
+            return response.data;
+        } catch (error) {
+            if (!options.silent) throw error;
+
+            if (process.env.NODE_ENV !== 'production') {
+                console.error(`Silent category ${id} fetch failed:`, error);
+            }
+
+            return null;
+        }
+    }
+
+    // ── GET /categories/admin/{entranceType}/categories (admin-only)
+
+    async getCategoriesByEntranceType(
+        entranceType: string,
+        options: { silent?: boolean } = { silent: true },
+    ): Promise<CategoryApiResponse[]> {
+        try {
+            const response = await apiClient.get<CategoryApiResponse[]>(
+                `${this.endpoint}/admin/${entranceType}/categories`
+            );
+
+            if (!response?.data || !Array.isArray(response.data)) {
+                throw { message: 'Invalid categories response', status: 500 } as ApiError;
+            }
+
+            return response.data;
+        } catch (error) {
+            if (!options.silent) throw error;
+
+            if (process.env.NODE_ENV !== 'production') {
+                console.error(`Silent category fetch for entrance type ${entranceType} failed:`, error);
+            }
+
+            return [];
+        }
+    }
+
+    // ── POST /categories ─────────────────────────────────────────
 
     async createCategory(data: CategoryFormData): Promise<{
         success: boolean;
@@ -83,15 +154,14 @@ class CategoryService {
 
             return { success: true, data: response.data };
         } catch (error) {
-            const apiError = error as ApiError;
-            console.error('Failed to create category:', apiError);
-
             return {
                 success: false,
-                error: apiError.message || 'Failed to create category',
+                error: extractErrorMessage(error, 'Failed to create category'),
             };
         }
     }
+
+    // ── PUT /categories/{id} ─────────────────────────────────────
 
     async updateCategory(id: number, data: CategoryFormData): Promise<{
         success: boolean;
@@ -107,15 +177,14 @@ class CategoryService {
 
             return { success: true, data: response.data };
         } catch (error) {
-            const apiError = error as ApiError;
-            console.error(`Failed to update category ${id}:`, apiError);
-
             return {
                 success: false,
-                error: apiError.message || 'Failed to update category',
+                error: extractErrorMessage(error, 'Failed to update category'),
             };
         }
     }
+
+    // ── DELETE /categories/{id} ──────────────────────────────────
 
     async deleteCategory(id: number): Promise<{
         success: boolean;
@@ -125,12 +194,9 @@ class CategoryService {
             await apiClient.delete(`${this.endpoint}/${id}`);
             return { success: true };
         } catch (error) {
-            const apiError = error as ApiError;
-            console.error(`Failed to delete category ${id}:`, apiError);
-
             return {
                 success: false,
-                error: apiError.message || 'Failed to delete category',
+                error: extractErrorMessage(error, 'Failed to delete category'),
             };
         }
     }
