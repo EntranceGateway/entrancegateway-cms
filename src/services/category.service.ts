@@ -30,6 +30,39 @@ class CategoryService {
         return qs ? `?${qs}` : '';
     }
 
+    private normalizeCategoryList(
+        data: CategoryApiResponse[] | {
+            content: CategoryApiResponse[];
+            totalElements?: number;
+            totalPages?: number;
+            pageNumber?: number;
+            pageSize?: number;
+            last?: boolean;
+            isLast?: boolean;
+        },
+        params: PaginatedQueryParams,
+    ) {
+        if (Array.isArray(data)) {
+            return {
+                categories: data,
+                totalElements: data.length,
+                totalPages: 1,
+                currentPage: params.page ?? 0,
+                pageSize: params.size ?? data.length,
+                isLast: true,
+            };
+        }
+
+        return {
+            categories: data.content ?? [],
+            totalElements: data.totalElements ?? data.content?.length ?? 0,
+            totalPages: data.totalPages ?? 1,
+            currentPage: data.pageNumber ?? params.page ?? 0,
+            pageSize: data.pageSize ?? params.size ?? data.content?.length ?? 10,
+            isLast: data.last ?? data.isLast ?? true,
+        };
+    }
+
     // ── GET /categories/admin (paginated, admin-only) ─────────────
 
     async getCategories(params: PaginatedQueryParams = {}): Promise<{
@@ -46,29 +79,21 @@ class CategoryService {
                 sortDir: 'asc',
                 ...params,
             });
-            const response = await apiClient.get<{
+            const response = await apiClient.get<CategoryApiResponse[] | {
                 content: CategoryApiResponse[];
-                totalElements: number;
-                totalPages: number;
-                pageNumber: number;
-                pageSize: number;
-                last: boolean;
+                totalElements?: number;
+                totalPages?: number;
+                pageNumber?: number;
+                pageSize?: number;
+                last?: boolean;
+                isLast?: boolean;
             }>(`${this.endpoint}/admin${queryString}`);
 
             if (!response || !response.data) {
                 throw new Error('Invalid response format');
             }
 
-            const { content, totalElements, totalPages, pageNumber, pageSize, last } = response.data;
-
-            return {
-                categories: content,
-                totalElements,
-                totalPages,
-                currentPage: pageNumber,
-                pageSize,
-                isLast: last,
-            };
+            return this.normalizeCategoryList(response.data, params);
         } catch (error) {
             if (process.env.NODE_ENV !== 'production') {
                 console.error('Failed to fetch categories:', error);

@@ -18,14 +18,20 @@ export interface PaginatedResponse<T> {
 // ─── Category ────────────────────────────────────────────────────
 export interface CategoryApiResponse {
     categoryId: number;
+    slug: string;
     categoryName: string;
     remarks: string;
+    entranceTypeId: number;
+    entranceTypeName: string;
 }
 
 export interface Category {
     id: number;
+    slug: string;
     categoryName: string;
     remarks: string;
+    entranceTypeId: number;
+    entranceTypeName: string;
 }
 
 export interface CategoryFormData {

@@ -27,8 +27,11 @@ export function useCategories(initialParams: PaginatedQueryParams = {}) {
             // Transform API response to UI type
             const transformedCategories: Category[] = result.categories.map(cat => ({
                 id: cat.categoryId,
+                slug: cat.slug,
                 categoryName: cat.categoryName,
                 remarks: cat.remarks,
+                entranceTypeId: cat.entranceTypeId,
+                entranceTypeName: cat.entranceTypeName,
             }));
 
             setCategories(transformedCategories);

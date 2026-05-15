@@ -130,6 +130,16 @@ export default function CategoriesPage() {
       label: 'Category Name',
     },
     {
+      key: 'slug',
+      label: 'Slug',
+      render: (category: Category) => category.slug || '-',
+    },
+    {
+      key: 'entranceTypeName',
+      label: 'Entrance Type',
+      render: (category: Category) => category.entranceTypeName || '-',
+    },
+    {
       key: 'remarks',
       label: 'Remarks',
       render: (category: Category) => category.remarks || '-',
@@ -208,11 +218,27 @@ export default function CategoriesPage() {
               emptyMessage="No categories found"
               mobileCardRender={(category) => (
                 <div className="space-y-3">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <p className="font-semibold text-gray-900">{category.categoryName}</p>
-                      <p className="text-xs text-gray-500 mt-1">ID: {category.id}</p>
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-start gap-3">
+                      <div className="min-w-0">
+                        <p className="font-semibold text-gray-900">{category.categoryName}</p>
+                        <p className="text-xs text-gray-500 mt-1">ID: {category.id}</p>
+                        {category.slug && (
+                          <p className="text-xs text-gray-500 mt-1 truncate">Slug: {category.slug}</p>
+                        )}
+                      </div>
                     </div>
+                    {category.entranceTypeName && (
+                      <span
+                        className="inline-flex px-2.5 py-1 text-xs font-medium rounded-full"
+                        style={{
+                          backgroundColor: 'rgba(13, 71, 161, 0.08)',
+                          color: 'var(--color-brand-navy)',
+                        }}
+                      >
+                        {category.entranceTypeName}
+                      </span>
+                    )}
                   </div>
                   {category.remarks && (
                     <p className="text-sm text-gray-600">{category.remarks}</p>

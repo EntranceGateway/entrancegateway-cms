@@ -4,7 +4,7 @@ import type { NextRequest } from 'next/server';
 // Public paths that don't require authentication
 const publicPaths = ['/login', '/debug-auth'];
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   
   const accessToken = request.cookies.get('accessToken')?.value;
