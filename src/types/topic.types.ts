@@ -1,13 +1,17 @@
 // ─── Topic Types ─────────────────────────────────────────────────
 
+export interface TopicParentResponse {
+    topicId: string;
+    topicName: string;
+}
+
 export interface TopicApiResponse {
     topicId: string;
     topicName: string;
     description: string | null;
     categoryId: number;
     categoryName: string;
-    parentTopicId: string | null;
-    parentTopicName: string | null;
+    parentTopic: TopicParentResponse | null;
 }
 
 export interface Topic {
@@ -37,3 +41,14 @@ export type TopicCreatePayload = {
     categoryId: number;
     parentTopicId?: string | null;
 };
+
+export interface TopicBatchFailure {
+    index: number;
+    topicName: string;
+    error: string;
+}
+
+export interface TopicBatchResult {
+    created: TopicApiResponse[];
+    failures: TopicBatchFailure[];
+}

@@ -9,8 +9,10 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { FormModal } from '@/components/ui/FormModal';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { Input } from '@/components/ui/Input';
+import { Select } from '@/components/ui/Select';
 import { Textarea } from '@/components/ui/Textarea';
 import { useCategories } from '@/hooks/useCategories';
+import { useEntranceTypes } from '@/hooks/useEntranceTypes';
 import { categoryService } from '@/services/category.service';
 import { toast } from '@/lib/utils/toast';
 import type { Category } from '@/types/quiz.types';
@@ -30,12 +32,25 @@ export default function CategoriesPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
-  const [formData, setFormData] = useState({ categoryName: '', remarks: '' });
+  const [formData, setFormData] = useState({
+    categoryName: '',
+    remarks: '',
+    entranceTypeId: null as number | null,
+  });
   const [submitting, setSubmitting] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const { entranceTypes, loading: entranceTypesLoading } = useEntranceTypes();
+
+  const entranceTypeOptions = [
+    { value: '', label: entranceTypesLoading ? 'Loading entrance types...' : 'Select entrance type' },
+    ...entranceTypes.map((entranceType) => ({
+      value: entranceType.id.toString(),
+      label: entranceType.entranceName,
+    })),
+  ];
 
   const handleCreate = () => {
-    setFormData({ categoryName: '', remarks: '' });
+    setFormData({ categoryName: '', remarks: '', entranceTypeId: null });
     setShowCreateModal(true);
   };
 
@@ -44,6 +59,7 @@ export default function CategoriesPage() {
     setFormData({
       categoryName: category.categoryName,
       remarks: category.remarks || '',
+      entranceTypeId: category.entranceTypeId || null,
     });
     setShowEditModal(true);
   };
@@ -55,6 +71,12 @@ export default function CategoriesPage() {
 
   const handleSubmitCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!formData.entranceTypeId) {
+      toast.warning('Entrance type is required');
+      return;
+    }
+
     setSubmitting(true);
 
     try {
@@ -77,6 +99,11 @@ export default function CategoriesPage() {
   const handleSubmitEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedCategory) return;
+
+    if (!formData.entranceTypeId) {
+      toast.warning('Entrance type is required');
+      return;
+    }
 
     setSubmitting(true);
 
@@ -299,6 +326,18 @@ export default function CategoriesPage() {
               placeholder="e.g., Mathematics"
             />
 
+            <Select
+              label="Entrance Type"
+              value={formData.entranceTypeId?.toString() || ''}
+              onChange={(e) => setFormData({
+                ...formData,
+                entranceTypeId: e.target.value ? Number(e.target.value) : null,
+              })}
+              options={entranceTypeOptions}
+              disabled={entranceTypesLoading || submitting}
+              required
+            />
+
             <Textarea
               label="Remarks"
               value={formData.remarks}
@@ -342,6 +381,18 @@ export default function CategoriesPage() {
               onChange={(e) => setFormData({ ...formData, categoryName: e.target.value })}
               required
               placeholder="e.g., Mathematics"
+            />
+
+            <Select
+              label="Entrance Type"
+              value={formData.entranceTypeId?.toString() || ''}
+              onChange={(e) => setFormData({
+                ...formData,
+                entranceTypeId: e.target.value ? Number(e.target.value) : null,
+              })}
+              options={entranceTypeOptions}
+              disabled={entranceTypesLoading || submitting}
+              required
             />
 
             <Textarea

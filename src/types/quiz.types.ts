@@ -37,6 +37,18 @@ export interface Category {
 export interface CategoryFormData {
     categoryName: string;
     remarks: string;
+    entranceTypeId: number | null;
+}
+
+export interface CategoryBatchFailure {
+    index: number;
+    categoryName: string;
+    error: string;
+}
+
+export interface CategoryBatchResult {
+    created: CategoryApiResponse[];
+    failures: CategoryBatchFailure[];
 }
 
 // ─── Course ──────────────────────────────────────────────────────

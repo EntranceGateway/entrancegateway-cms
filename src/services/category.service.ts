@@ -1,6 +1,7 @@
 import { apiClient } from '@/lib/api/apiClient';
 import type {
     CategoryApiResponse,
+    CategoryBatchResult,
     CategoryFormData,
     PaginatedQueryParams,
 } from '@/types/quiz.types';
@@ -16,6 +17,12 @@ function extractErrorMessage(error: unknown, fallback: string): string {
     }
     return fallback;
 }
+
+type CategoryRequestPayload = {
+    categoryName: string;
+    remarks?: string;
+    entranceTypeId: number;
+};
 
 class CategoryService {
     private readonly endpoint = '/categories';
@@ -74,11 +81,6 @@ class CategoryService {
         isLast: boolean;
     }> {
         try {
-            const queryString = this.buildQueryString({
-                sortBy: 'categoryName',
-                sortDir: 'asc',
-                ...params,
-            });
             const response = await apiClient.get<CategoryApiResponse[] | {
                 content: CategoryApiResponse[];
                 totalElements?: number;
@@ -87,7 +89,7 @@ class CategoryService {
                 pageSize?: number;
                 last?: boolean;
                 isLast?: boolean;
-            }>(`${this.endpoint}/admin${queryString}`);
+            }>(`${this.endpoint}/admin`);
 
             if (!response || !response.data) {
                 throw new Error('Invalid response format');
@@ -96,8 +98,9 @@ class CategoryService {
             return this.normalizeCategoryList(response.data, params);
         } catch (error) {
             if (process.env.NODE_ENV !== 'production') {
-                console.error('Failed to fetch categories:', error);
+                console.error('Admin category fetch failed:', error);
             }
+
             return {
                 categories: [],
                 totalElements: 0,
@@ -167,14 +170,29 @@ class CategoryService {
 
     async createCategory(data: CategoryFormData): Promise<{
         success: boolean;
-        data?: CategoryApiResponse;
+        data?: CategoryBatchResult;
         error?: string;
     }> {
         try {
-            const response = await apiClient.post<CategoryApiResponse>(this.endpoint, data);
+            if (!data.entranceTypeId) {
+                return { success: false, error: 'Entrance type is required' };
+            }
 
-            if (!response || !response.data) {
-                return { success: false, error: 'Failed to create category' };
+            const payload: CategoryRequestPayload[] = [{
+                categoryName: data.categoryName.trim(),
+                remarks: data.remarks.trim(),
+                entranceTypeId: data.entranceTypeId,
+            }];
+
+            const response = await apiClient.post<CategoryBatchResult>(this.endpoint, payload);
+
+            if (!response?.data) {
+                return { success: false, error: response?.message || 'Failed to create category' };
+            }
+
+            const failure = response.data.failures?.[0];
+            if (failure) {
+                return { success: false, data: response.data, error: failure.error };
             }
 
             return { success: true, data: response.data };
@@ -194,7 +212,17 @@ class CategoryService {
         error?: string;
     }> {
         try {
-            const response = await apiClient.put<CategoryApiResponse>(`${this.endpoint}/${id}`, data);
+            if (!data.entranceTypeId) {
+                return { success: false, error: 'Entrance type is required' };
+            }
+
+            const payload: CategoryRequestPayload = {
+                categoryName: data.categoryName.trim(),
+                remarks: data.remarks.trim(),
+                entranceTypeId: data.entranceTypeId,
+            };
+
+            const response = await apiClient.put<CategoryApiResponse>(`${this.endpoint}/${id}`, payload);
 
             if (!response || !response.data) {
                 return { success: false, error: 'Failed to update category' };

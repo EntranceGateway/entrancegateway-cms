@@ -1,6 +1,7 @@
 import { apiClient } from '@/lib/api/apiClient';
 import type {
     TopicApiResponse,
+    TopicBatchResult,
     TopicCreatePayload,
     TopicFormData,
 } from '@/types/topic.types';
@@ -8,7 +9,7 @@ import type { ApiError } from '@/types/api.types';
 
 type TopicMutationResult = {
     success: boolean;
-    data?: TopicApiResponse | TopicApiResponse[];
+    data?: TopicApiResponse | TopicBatchResult;
     message?: string;
     error?: string;
 };
@@ -91,12 +92,22 @@ class TopicService {
                 return { success: false, error: 'At least one topic is required' };
             }
 
-            const response = await apiClient.post<TopicApiResponse[]>(this.endpoint, topics);
+            const response = await apiClient.post<TopicBatchResult>(this.endpoint, topics);
 
             if (!response?.data) {
                 return {
                     success: false,
                     error: response?.message || 'Failed to create topics',
+                };
+            }
+
+            const failure = response.data.failures?.[0];
+            if (failure) {
+                return {
+                    success: false,
+                    data: response.data,
+                    error: failure.error,
+                    message: response.message,
                 };
             }
 

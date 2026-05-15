@@ -68,9 +68,9 @@ export default function TopicsPage() {
           id: t.categoryId,
           name: t.categoryName,
         },
-        parentTopic: t.parentTopicId ? {
-          id: t.parentTopicId,
-          name: t.parentTopicName || '',
+        parentTopic: t.parentTopic ? {
+          id: t.parentTopic.topicId,
+          name: t.parentTopic.topicName,
         } : null,
       }));
 
