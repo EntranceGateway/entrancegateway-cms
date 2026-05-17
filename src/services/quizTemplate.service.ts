@@ -67,7 +67,7 @@ class QuizTemplateService {
     try {
       const queryString = this.buildQueryString(params);
       const response = await apiClient.get<PaginatedListResult>(
-        `${this.endpoint}${queryString}`
+        `${this.endpoint}/admin${queryString}`
       );
 
       if (!response?.data) {

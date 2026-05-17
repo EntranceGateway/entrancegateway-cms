@@ -183,6 +183,85 @@ class TopicService {
             };
         }
     }
+
+    // ── GET /topics/admin/by-entrance/slug/{entranceSlug} ─────────
+
+    async getAdminTopicsByEntranceSlug(
+        entranceSlug: string,
+        options: { silent?: boolean } = { silent: true },
+    ): Promise<TopicApiResponse[]> {
+        try {
+            const response = await apiClient.get<TopicApiResponse[]>(
+                `${this.endpoint}/admin/by-entrance/slug/${entranceSlug}`
+            );
+
+            if (!response?.data || !Array.isArray(response.data)) {
+                throw { message: 'Invalid admin topics response', status: 500 } as ApiError;
+            }
+
+            return response.data;
+        } catch (error) {
+            if (!options.silent) throw error;
+
+            if (process.env.NODE_ENV !== 'production') {
+                console.error(`Silent admin topic fetch for entrance ${entranceSlug} failed:`, error);
+            }
+
+            return [];
+        }
+    }
+
+    // ── GET /topics/admin/by-entrance/{entranceSlug}/category/{categoryId}
+
+    async getAdminTopicsByEntranceAndCategory(
+        entranceSlug: string,
+        categoryId: number,
+        options: { silent?: boolean } = { silent: true },
+    ): Promise<TopicApiResponse[]> {
+        try {
+            const response = await apiClient.get<TopicApiResponse[]>(
+                `${this.endpoint}/admin/by-entrance/${entranceSlug}/category/${categoryId}`
+            );
+
+            if (!response?.data || !Array.isArray(response.data)) {
+                throw { message: 'Invalid admin topics response', status: 500 } as ApiError;
+            }
+
+            return response.data;
+        } catch (error) {
+            if (!options.silent) throw error;
+
+            if (process.env.NODE_ENV !== 'production') {
+                console.error(`Silent admin topic fetch for ${entranceSlug}/category/${categoryId} failed:`, error);
+            }
+
+            return [];
+        }
+    }
+
+    // ── GET /topics/admin/all ───────────────────────────────────────
+
+    async getAllAdminTopics(options: { silent?: boolean } = { silent: true }): Promise<TopicApiResponse[]> {
+        try {
+            const response = await apiClient.get<TopicApiResponse[]>(
+                `${this.endpoint}/admin/all`
+            );
+
+            if (!response?.data || !Array.isArray(response.data)) {
+                throw { message: 'Invalid admin topics response', status: 500 } as ApiError;
+            }
+
+            return response.data;
+        } catch (error) {
+            if (!options.silent) throw error;
+
+            if (process.env.NODE_ENV !== 'production') {
+                console.error('Silent admin all topics fetch failed:', error);
+            }
+
+            return [];
+        }
+    }
 }
 
 export const topicService = new TopicService();

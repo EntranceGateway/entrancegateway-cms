@@ -57,8 +57,8 @@ export default function TopicsPage() {
       const categoryId = selectedCategoryFilter ? parseInt(selectedCategoryFilter) : null;
       
       const result = categoryId
-        ? await topicService.getTopicsByEntranceAndCategory(selectedEntranceSlug, categoryId, { silent: false })
-        : await topicService.getTopicsByEntranceSlug(selectedEntranceSlug, { silent: false });
+        ? await topicService.getAdminTopicsByEntranceAndCategory(selectedEntranceSlug, categoryId, { silent: false })
+        : await topicService.getAdminTopicsByEntranceSlug(selectedEntranceSlug, { silent: false });
 
       const transformed: Topic[] = result.map((t: TopicApiResponse) => ({
         id: t.topicId,
@@ -212,12 +212,6 @@ export default function TopicsPage() {
     }
   };
 
-  // ── Stats ────────────────────────────────────────────────────
-
-  const totalTopics = topics.length;
-  const uniqueCategories = new Set(topics.map(t => t.category.id)).size;
-  const withParent = topics.filter(t => t.parentTopic !== null).length;
-
   // ── Render ───────────────────────────────────────────────────
 
   if (entranceLoading || categoriesLoading) {
@@ -300,66 +294,6 @@ export default function TopicsPage() {
               </div>
             </div>
           </div>
-
-          {/* Stats Bar */}
-          {selectedEntranceSlug && !loading && !error && topics.length > 0 && (
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
-                <div className="flex items-center gap-3">
-                  <div
-                    className="w-10 h-10 rounded-lg flex items-center justify-center"
-                    style={{ backgroundColor: 'rgba(13, 71, 161, 0.1)' }}
-                  >
-                    <span className="material-icons text-xl" style={{ color: 'var(--color-brand-navy)' }}>
-                      topic
-                    </span>
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold" style={{ color: 'var(--color-brand-navy)' }}>
-                      {totalTopics}
-                    </p>
-                    <p className="text-xs text-gray-500">Total Topics</p>
-                  </div>
-                </div>
-              </div>
-              <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
-                <div className="flex items-center gap-3">
-                  <div
-                    className="w-10 h-10 rounded-lg flex items-center justify-center"
-                    style={{ backgroundColor: 'rgba(46, 125, 50, 0.1)' }}
-                  >
-                    <span className="material-icons text-xl" style={{ color: 'var(--color-success)' }}>
-                      category
-                    </span>
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold" style={{ color: 'var(--color-success)' }}>
-                      {uniqueCategories}
-                    </p>
-                    <p className="text-xs text-gray-500">Categories</p>
-                  </div>
-                </div>
-              </div>
-              <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
-                <div className="flex items-center gap-3">
-                  <div
-                    className="w-10 h-10 rounded-lg flex items-center justify-center"
-                    style={{ backgroundColor: 'rgba(249, 168, 37, 0.1)' }}
-                  >
-                    <span className="material-icons text-xl" style={{ color: 'var(--color-warning)' }}>
-                      account_tree
-                    </span>
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold" style={{ color: 'var(--color-warning)' }}>
-                      {withParent}
-                    </p>
-                    <p className="text-xs text-gray-500">Sub-Topics</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* Content */}
           {!selectedEntranceSlug ? (

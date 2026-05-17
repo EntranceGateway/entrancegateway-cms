@@ -81,6 +81,7 @@ class CategoryService {
         isLast: boolean;
     }> {
         try {
+            const queryString = this.buildQueryString(params);
             const response = await apiClient.get<CategoryApiResponse[] | {
                 content: CategoryApiResponse[];
                 totalElements?: number;
@@ -89,7 +90,7 @@ class CategoryService {
                 pageSize?: number;
                 last?: boolean;
                 isLast?: boolean;
-            }>(`${this.endpoint}/admin`);
+            }>(`${this.endpoint}/admin${queryString}`);
 
             if (!response || !response.data) {
                 throw new Error('Invalid response format');
