@@ -6,11 +6,22 @@ import { useQuizPurchases } from '@/hooks/useQuizPurchases';
 import { purchaseService } from '@/services/purchase.service';
 import { toast } from '@/lib/utils/toast';
 import { useState, useEffect } from 'react';
-import type { PurchaseStatus, QuizPurchase, ModuleType, PaymentMethod } from '@/types/purchase.types';
+import type {
+  AdminPurchaseModuleType,
+  ModuleType,
+  PaymentMethod,
+  PurchaseStatisticsResponse,
+  PurchaseStatus,
+  PurchaseView,
+  QuizPurchase,
+} from '@/types/purchase.types';
 
 export default function QuizPurchasesPage() {
   const [statusFilter, setStatusFilter] = useState<PurchaseStatus | ''>('');
   const [userIdFilter, setUserIdFilter] = useState('');
+  const [moduleTypeFilter, setModuleTypeFilter] = useState<AdminPurchaseModuleType | ''>('');
+  const [purchaseView, setPurchaseView] = useState<PurchaseView>('QUIZ');
+  const [statistics, setStatistics] = useState<PurchaseStatisticsResponse | null>(null);
   const [selectedPurchase, setSelectedPurchase] = useState<QuizPurchase | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [imageModalOpen, setImageModalOpen] = useState(false);
@@ -24,6 +35,7 @@ export default function QuizPurchasesPage() {
   });
   
   const { purchases, loading, error, pagination, goToPage, updateFilters, refetch } = useQuizPurchases({
+    view: 'QUIZ',
     page: 0,
     size: 10,
     sortBy: 'purchaseDate',
@@ -31,31 +43,53 @@ export default function QuizPurchasesPage() {
   });
 
   useEffect(() => {
+    const loadStatistics = async () => {
+      const result = await purchaseService.getPurchaseStatistics();
+      if (result.data) {
+        setStatistics(result.data);
+      } else if (result.error && process.env.NODE_ENV !== 'production') {
+        console.error(result.error);
+      }
+    };
+
+    loadStatistics();
+  }, []);
+
+  useEffect(() => {
     if (error) {
       toast.error(error);
     }
   }, [error]);
 
-  const handleFilterChange = () => {
+  const applyFilters = (
+    nextView: PurchaseView = purchaseView,
+    nextStatus: PurchaseStatus | '' = statusFilter,
+    nextModuleType: AdminPurchaseModuleType | '' = moduleTypeFilter,
+  ) => {
     const userId = userIdFilter.trim();
-    
     if (userId && isNaN(parseInt(userId))) {
       toast.error('User ID must be a valid number');
       return;
     }
 
     updateFilters({
-      status: statusFilter || undefined,
+      view: nextView,
+      status: nextStatus || undefined,
       userId: userId ? parseInt(userId) : undefined,
+      moduleType: nextView === 'PENDING' ? nextModuleType || undefined : undefined,
     });
   };
 
   const handleClearFilters = () => {
     setStatusFilter('');
     setUserIdFilter('');
+    setModuleTypeFilter('');
+    setPurchaseView('QUIZ');
     updateFilters({
+      view: 'QUIZ',
       status: undefined,
       userId: undefined,
+      moduleType: undefined,
     });
   };
 
@@ -92,9 +126,11 @@ export default function QuizPurchasesPage() {
   const handleRejectPurchase = async () => {
     if (!selectedPurchase) return;
 
+    const reason = window.prompt('Reason for rejecting this purchase?') || undefined;
+
     setActionLoading(true);
     try {
-      const result = await purchaseService.rejectPurchase(selectedPurchase.purchaseId);
+      const result = await purchaseService.rejectPurchase(selectedPurchase.purchaseId, reason);
       
       if (result.success) {
         toast.success('Purchase rejected successfully');
@@ -211,6 +247,7 @@ export default function QuizPurchasesPage() {
       PENDING: { bg: 'rgba(249, 168, 37, 0.1)', text: 'var(--color-warning)', border: 'rgba(249, 168, 37, 0.2)' },
       FAILED: { bg: 'rgba(211, 47, 47, 0.1)', text: 'var(--color-error)', border: 'rgba(211, 47, 47, 0.2)' },
       REJECTED_BY_ADMIN: { bg: 'rgba(211, 47, 47, 0.1)', text: 'var(--color-error)', border: 'rgba(211, 47, 47, 0.2)' },
+      CANCELLED_BY_ADMIN: { bg: 'rgba(107, 114, 128, 0.1)', text: '#4b5563', border: 'rgba(107, 114, 128, 0.2)' },
     };
     return colors[status] || colors.PENDING;
   };
@@ -231,10 +268,10 @@ export default function QuizPurchasesPage() {
               className="text-2xl md:text-3xl font-bold font-roboto"
               style={{ color: 'var(--color-brand-navy)' }}
             >
-              Quiz Purchases
+              Admin Purchases
             </h1>
             <p className="text-sm md:text-base text-gray-500 mt-1">
-              Manage quiz purchases, manual approvals, and admin-recorded payments.
+              Manage all purchases, pending approvals, module-specific records, and admin-recorded payments.
             </p>
           </div>
           <button
@@ -246,24 +283,80 @@ export default function QuizPurchasesPage() {
           </button>
         </div>
 
+        {statistics && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+            <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Total Purchases</p>
+              <p className="mt-2 text-2xl font-bold" style={{ color: 'var(--color-brand-navy)' }}>
+                {statistics.totalPurchases.toLocaleString()}
+              </p>
+            </div>
+            <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Total Revenue</p>
+              <p className="mt-2 text-2xl font-bold" style={{ color: 'var(--color-brand-navy)' }}>
+                NPR {statistics.totalRevenue.toLocaleString()}
+              </p>
+            </div>
+            <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Pending Approvals</p>
+              <p className="mt-2 text-2xl font-bold" style={{ color: 'var(--color-warning)' }}>
+                {statistics.pendingApprovals.toLocaleString()}
+              </p>
+            </div>
+            <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Recent Purchases</p>
+              <p className="mt-2 text-2xl font-bold" style={{ color: 'var(--color-brand-blue)' }}>
+                {statistics.recentPurchases.toLocaleString()}
+              </p>
+            </div>
+          </div>
+        )}
+
         <div className="bg-white border border-gray-200 rounded-xl p-4 md:p-6 mb-6 shadow-sm">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <div className="sm:col-span-1">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Purchase View</label>
+              <select
+                value={purchaseView}
+                onChange={(e) => {
+                  const nextView = e.target.value as PurchaseView;
+                  setPurchaseView(nextView);
+                  applyFilters(nextView);
+                }}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent text-sm"
+              >
+                <option value="ALL">All Purchases</option>
+                <option value="PENDING">Pending Approvals</option>
+                <option value="QUIZ">Quiz Purchases</option>
+                <option value="TRAINING">Training Purchases</option>
+                <option value="SUBSCRIPTION">Subscription Purchases</option>
+              </select>
+            </div>
+
+            <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">User ID</label>
               <input
                 type="text"
                 value={userIdFilter}
                 onChange={(e) => setUserIdFilter(e.target.value)}
+                onBlur={() => applyFilters()}
                 placeholder="Filter by user ID"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent text-sm"
+                disabled={purchaseView !== 'ALL'}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent text-sm disabled:bg-gray-100 disabled:text-gray-400"
               />
             </div>
-            <div className="sm:col-span-1">
+
+            <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
               <select
                 value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value as PurchaseStatus | '')}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent text-sm"
+                onChange={(e) => {
+                  const nextStatus = e.target.value as PurchaseStatus | '';
+                  setStatusFilter(nextStatus);
+                  applyFilters(purchaseView, nextStatus);
+                }}
+                disabled={purchaseView === 'PENDING'}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent text-sm disabled:bg-gray-100 disabled:text-gray-400"
               >
                 <option value="">All Statuses</option>
                 <option value="PAID">Paid</option>
@@ -271,21 +364,34 @@ export default function QuizPurchasesPage() {
                 <option value="PAYMENT_RECEIVED_ADMIN_APPROVAL_PENDING">Awaiting Admin Approval</option>
                 <option value="FAILED">Failed</option>
                 <option value="REJECTED_BY_ADMIN">Rejected by Admin</option>
+                <option value="CANCELLED_BY_ADMIN">Cancelled by Admin</option>
               </select>
             </div>
-            <div className="sm:col-span-2 lg:col-span-1 flex items-end gap-2">
-              <button
-                onClick={handleFilterChange}
-                disabled={loading}
-                className="flex-1 px-4 py-2 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
-                style={{ backgroundColor: 'var(--color-brand-blue)' }}
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Pending Module</label>
+              <select
+                value={moduleTypeFilter}
+                onChange={(e) => {
+                  const nextModuleType = e.target.value as AdminPurchaseModuleType | '';
+                  setModuleTypeFilter(nextModuleType);
+                  applyFilters(purchaseView, statusFilter, nextModuleType);
+                }}
+                disabled={purchaseView !== 'PENDING'}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent text-sm disabled:bg-gray-100 disabled:text-gray-400"
               >
-                Apply Filters
-              </button>
+                <option value="">All Modules</option>
+                <option value="QUIZ">Quiz</option>
+                <option value="TRAINING">Training</option>
+                <option value="SUBSCRIPTION">Subscription</option>
+              </select>
+            </div>
+
+            <div className="sm:col-span-2 xl:col-span-4 flex justify-end">
               <button
                 onClick={handleClearFilters}
                 disabled={loading}
-                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+                className="w-full sm:w-auto px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
               >
                 Clear
               </button>
@@ -327,7 +433,7 @@ export default function QuizPurchasesPage() {
                     <tr className="border-b border-gray-200">
                       <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-gray-500">Purchase ID</th>
                       <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-gray-500">User</th>
-                      <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-gray-500">Quiz Set</th>
+                      <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-gray-500">Item</th>
                       <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-gray-500">Amount</th>
                       <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-gray-500">Date</th>
                       <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-gray-500">Status</th>
@@ -354,8 +460,12 @@ export default function QuizPurchasesPage() {
                             </div>
                           </td>
                           <td className="px-6 py-4">
-                            <div className="font-medium text-gray-900">{purchase.setName || purchase.templateName || 'N/A'}</div>
+                            <div className="font-medium text-gray-900">
+                              {purchase.setName || purchase.templateName || purchase.trainingName || purchase.subscriptionPlan || 'N/A'}
+                            </div>
+                            <div className="text-xs text-gray-500">Type: {purchase.moduleType || 'N/A'}</div>
                             {purchase.setId && <div className="text-xs text-gray-500">Set ID: {purchase.setId}</div>}
+                            {purchase.trainingId && <div className="text-xs text-gray-500">Training ID: {purchase.trainingId}</div>}
                             {purchase.templateId && <div className="text-xs text-gray-500">Template ID: {purchase.templateId}</div>}
                           </td>
                           <td className="px-6 py-4">
@@ -380,7 +490,7 @@ export default function QuizPurchasesPage() {
                             {purchase.paymentProof ? (
                               <div className="relative w-16 h-16 rounded-lg overflow-hidden border border-gray-200 cursor-pointer hover:border-brand-blue transition-colors group">
                                 <img
-                                  src={purchase.paymentProof}
+                                  src={purchase.paymentProofUrl || purchase.paymentProof || ''}
                                   alt="Payment Proof"
                                   className="w-full h-full object-cover"
                                 />
@@ -446,8 +556,10 @@ export default function QuizPurchasesPage() {
 
                       <div className="space-y-2 mb-3">
                         <div className="flex items-start justify-between text-sm gap-2">
-                          <span className="text-gray-500 flex-shrink-0">Quiz Item:</span>
-                          <span className="font-medium text-gray-900 text-right break-words">{purchase.setName || purchase.templateName || 'N/A'}</span>
+                          <span className="text-gray-500 flex-shrink-0">Item:</span>
+                          <span className="font-medium text-gray-900 text-right break-words">
+                            {purchase.setName || purchase.templateName || purchase.trainingName || purchase.subscriptionPlan || 'N/A'}
+                          </span>
                         </div>
                         <div className="flex items-center justify-between text-sm">
                           <span className="text-gray-500">Amount:</span>
@@ -620,14 +732,23 @@ export default function QuizPurchasesPage() {
                   </div>
 
                   <div>
-                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Quiz Item</label>
-                    <p className="mt-1 text-gray-900">{selectedPurchase.setName || selectedPurchase.templateName || 'N/A'}</p>
+                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Item</label>
+                    <p className="mt-1 text-gray-900">
+                      {selectedPurchase.setName || selectedPurchase.templateName || selectedPurchase.trainingName || selectedPurchase.subscriptionPlan || 'N/A'}
+                    </p>
                   </div>
 
                   {selectedPurchase.setId && (
                     <div>
                       <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Quiz Set ID</label>
                       <p className="mt-1 text-gray-900">{selectedPurchase.setId}</p>
+                    </div>
+                  )}
+
+                  {selectedPurchase.trainingId && (
+                    <div>
+                      <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Training ID</label>
+                      <p className="mt-1 text-gray-900">{selectedPurchase.trainingId}</p>
                     </div>
                   )}
 
@@ -669,7 +790,7 @@ export default function QuizPurchasesPage() {
                           className="relative cursor-pointer group rounded-lg overflow-hidden border border-gray-200 hover:border-brand-blue transition-colors"
                         >
                           <img
-                            src={selectedPurchase.paymentProof}
+                            src={selectedPurchase.paymentProofUrl || selectedPurchase.paymentProof || ''}
                             alt="Payment Proof"
                             className="w-full h-48 object-cover"
                           />
@@ -750,8 +871,8 @@ export default function QuizPurchasesPage() {
         )}
 
         {adminPaymentOpen && (
-          <div className="fixed inset-0 bg-black bg-opacity-40 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+            <div className="relative bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
               <div className="sticky top-0 bg-white border-b border-gray-200 px-5 sm:px-6 py-4 flex items-center justify-between rounded-t-2xl">
                 <div>
                   <h3 className="text-lg sm:text-xl font-bold" style={{ color: 'var(--color-brand-navy)' }}>

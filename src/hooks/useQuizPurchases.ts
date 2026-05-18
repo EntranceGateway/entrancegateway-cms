@@ -23,6 +23,7 @@ export function useQuizPurchases(initialParams: QuizPurchaseQueryParams = {}): U
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [params, setParams] = useState<QuizPurchaseQueryParams>({
+    view: 'QUIZ',
     page: 0,
     size: 10,
     sortBy: 'purchaseDate',
@@ -45,11 +46,9 @@ export function useQuizPurchases(initialParams: QuizPurchaseQueryParams = {}): U
     setError(null);
 
     try {
-      const result = await purchaseService.getQuizPurchases(params);
+      const result = await purchaseService.getPurchases(params);
 
-      if (currentRequestId !== requestIdRef.current) {
-        return;
-      }
+      if (currentRequestId !== requestIdRef.current) return;
 
       if (result.error) {
         setError(result.error);
@@ -72,11 +71,11 @@ export function useQuizPurchases(initialParams: QuizPurchaseQueryParams = {}): U
         });
       }
     } catch (error) {
-      if (currentRequestId !== requestIdRef.current) {
-        return;
-      }
+      if (currentRequestId !== requestIdRef.current) return;
       
-      console.error('Unexpected error fetching quiz purchases:', error);
+      if (process.env.NODE_ENV !== 'production') {
+        console.error('Unexpected error fetching purchases:', error);
+      }
       setError('An unexpected error occurred. Please try again.');
       setPurchases([]);
       setPagination({

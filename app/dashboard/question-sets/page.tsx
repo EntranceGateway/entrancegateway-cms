@@ -448,7 +448,7 @@ function QuestionSetsContent() {
               type="number"
               step="0.01"
               min="0"
-              value={formData.price || ''}
+              value={formData.price ?? ''}
               onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) || 0 })}
               required
               placeholder="Set to 0 for free quiz"
@@ -563,7 +563,7 @@ function QuestionSetsContent() {
               type="number"
               step="0.01"
               min="0"
-              value={formData.price || ''}
+              value={formData.price ?? ''}
               onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) || 0 })}
               required
               placeholder="Set to 0 for free quiz"

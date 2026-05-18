@@ -1,9 +1,11 @@
 import { apiClient } from '@/lib/api/apiClient';
 import type {
   AdminPaymentRequest,
-  ModuleType,
+  AdminPurchaseModuleType,
   PaymentResponse,
   PurchaseMutationResult,
+  PurchaseStatisticsResponse,
+  PurchaseView,
   QuizPurchase,
   QuizPurchaseListResponse,
   QuizPurchaseQueryParams,
@@ -15,8 +17,8 @@ function extractErrorMessage(error: unknown, fallback: string): string {
     const apiError = error as Partial<ApiError>;
 
     if (apiError.status === 403) return 'You do not have permission to perform this action';
-    if (apiError.status === 404) return 'Requested purchase or payment was not found';
-    if (apiError.status === 409) return 'This item cannot be changed in its current state';
+    if (apiError.status === 404) return 'Requested purchase was not found';
+    if (apiError.status === 409) return 'This purchase cannot be changed in its current state';
 
     return apiError.message || fallback;
   }
@@ -24,66 +26,115 @@ function extractErrorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
+type PurchaseListResult = {
+  purchases: QuizPurchase[];
+  totalElements: number;
+  totalPages: number;
+  currentPage: number;
+  pageSize: number;
+  isLast: boolean;
+  error?: string;
+};
+
 class PurchaseService {
-  private readonly purchaseEndpoint = '/purchases/admin/quizzes';
+  private readonly adminEndpoint = '/admin/purchases';
   private readonly paymentEndpoint = '/payments/admin';
 
-  private buildQueryString(params: QuizPurchaseQueryParams): string {
+  private buildQueryString(params: Record<string, string | number | undefined>): string {
     const queryParams = new URLSearchParams();
 
-    if (params.userId !== undefined) queryParams.append('userId', params.userId.toString());
-    if (params.status) queryParams.append('status', params.status);
-    if (params.page !== undefined) queryParams.append('page', params.page.toString());
-    if (params.size !== undefined) queryParams.append('size', params.size.toString());
-    if (params.sortBy) queryParams.append('sortBy', params.sortBy);
-    if (params.sortDir) queryParams.append('sortDir', params.sortDir);
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== '') {
+        queryParams.append(key, value.toString());
+      }
+    });
 
     const queryString = queryParams.toString();
     return queryString ? `?${queryString}` : '';
   }
 
-  async getQuizPurchases(params: QuizPurchaseQueryParams = {}): Promise<{
-    purchases: QuizPurchase[];
-    totalElements: number;
-    totalPages: number;
-    currentPage: number;
-    pageSize: number;
-    isLast: boolean;
-    error?: string;
-  }> {
-    try {
-      const queryString = this.buildQueryString(params);
-      const response = await apiClient.get<QuizPurchaseListResponse>(
-        `${this.purchaseEndpoint}${queryString}`,
-      );
-
-      if (!response?.data) {
-        return {
-          purchases: [],
-          totalElements: 0,
-          totalPages: 0,
-          currentPage: 0,
-          pageSize: params.size || 10,
-          isLast: true,
-          error: 'Invalid response format from server',
-        };
-      }
-
-      const { content, totalElements, totalPages, currentPage, size } = response.data;
-      const page = currentPage ?? params.page ?? 0;
-      const pageSize = size ?? params.size ?? 10;
-
+  private normalizePageResponse(
+    data: QuizPurchaseListResponse | null | undefined,
+    params: QuizPurchaseQueryParams,
+  ): PurchaseListResult {
+    if (!data) {
       return {
-        purchases: content || [],
-        totalElements: totalElements || 0,
-        totalPages: totalPages || 0,
-        currentPage: page,
-        pageSize,
-        isLast: totalPages ? page >= totalPages - 1 : true,
+        purchases: [],
+        totalElements: 0,
+        totalPages: 0,
+        currentPage: 0,
+        pageSize: params.size || 10,
+        isLast: true,
+        error: 'Invalid response format from server',
       };
+    }
+
+    return {
+      purchases: data.content || [],
+      totalElements: data.totalElements || 0,
+      totalPages: data.totalPages || 0,
+      currentPage: data.pageNumber ?? params.page ?? 0,
+      pageSize: data.pageSize ?? params.size ?? 10,
+      isLast: data.isLast ?? true,
+    };
+  }
+
+  private getListEndpoint(params: QuizPurchaseQueryParams): string {
+    if (params.view === 'PENDING') return `${this.adminEndpoint}/pending`;
+    if (params.view === 'QUIZ') return `${this.adminEndpoint}/quizzes`;
+    if (params.view === 'TRAINING') return `${this.adminEndpoint}/training`;
+    if (params.view === 'SUBSCRIPTION') return `${this.adminEndpoint}/subscriptions`;
+    return this.adminEndpoint;
+  }
+
+  private getListQuery(params: QuizPurchaseQueryParams): Record<string, string | number | undefined> {
+    const base = {
+      page: params.page,
+      size: params.size,
+      sortDir: params.sortDir,
+    };
+
+    if (params.view === 'PENDING') {
+      return { ...base, moduleType: params.moduleType };
+    }
+
+    if (params.view === 'QUIZ') {
+      return { ...base, status: params.status, quizId: params.quizId };
+    }
+
+    if (params.view === 'TRAINING') {
+      return { ...base, status: params.status, trainingId: params.trainingId };
+    }
+
+    if (params.view === 'SUBSCRIPTION') {
+      return {
+        ...base,
+        status: params.status,
+        plan: params.plan,
+        entranceTypeSlug: params.entranceTypeSlug,
+      };
+    }
+
+    return {
+      ...base,
+      userId: params.userId,
+      status: params.status,
+      startDate: params.startDate,
+      endDate: params.endDate,
+      sortBy: params.sortBy,
+    };
+  }
+
+  async getPurchases(params: QuizPurchaseQueryParams = {}): Promise<PurchaseListResult> {
+    try {
+      const endpoint = this.getListEndpoint(params);
+      const queryString = this.buildQueryString(this.getListQuery(params));
+      const response = await apiClient.get<QuizPurchaseListResponse>(`${endpoint}${queryString}`);
+
+      return this.normalizePageResponse(response?.data, params);
     } catch (error) {
       if (process.env.NODE_ENV !== 'production') {
-        console.error('Failed to fetch quiz purchases:', error);
+        console.error('Failed to fetch admin purchases:', error);
       }
 
       return {
@@ -93,15 +144,67 @@ class PurchaseService {
         currentPage: 0,
         pageSize: params.size || 10,
         isLast: true,
-        error: extractErrorMessage(error, 'Failed to load quiz purchases'),
+        error: extractErrorMessage(error, 'Failed to load purchases'),
       };
+    }
+  }
+
+  async getQuizPurchases(params: QuizPurchaseQueryParams = {}): Promise<PurchaseListResult> {
+    return this.getPurchases({ ...params, view: params.view || 'QUIZ' });
+  }
+
+  async getPurchasesByModuleType(
+    moduleType: AdminPurchaseModuleType,
+    params: Pick<QuizPurchaseQueryParams, 'status' | 'page' | 'size'> = {},
+  ): Promise<PurchaseListResult> {
+    try {
+      const queryString = this.buildQueryString(params);
+      const response = await apiClient.get<QuizPurchaseListResponse>(
+        `${this.adminEndpoint}/type/${moduleType}${queryString}`,
+      );
+
+      return this.normalizePageResponse(response?.data, params);
+    } catch (error) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.error(`Failed to fetch ${moduleType} purchases:`, error);
+      }
+
+      return {
+        purchases: [],
+        totalElements: 0,
+        totalPages: 0,
+        currentPage: 0,
+        pageSize: params.size || 10,
+        isLast: true,
+        error: extractErrorMessage(error, `Failed to load ${moduleType.toLowerCase()} purchases`),
+      };
+    }
+  }
+
+  async getPurchaseStatistics(params: Pick<QuizPurchaseQueryParams, 'startDate' | 'endDate'> = {}): Promise<{
+    data?: PurchaseStatisticsResponse;
+    error?: string;
+  }> {
+    try {
+      const queryString = this.buildQueryString(params);
+      const response = await apiClient.get<PurchaseStatisticsResponse>(
+        `${this.adminEndpoint}/statistics${queryString}`,
+      );
+
+      return { data: response.data ?? undefined };
+    } catch (error) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.error('Failed to fetch purchase statistics:', error);
+      }
+
+      return { error: extractErrorMessage(error, 'Failed to load purchase statistics') };
     }
   }
 
   async approvePurchase(purchaseId: number): Promise<PurchaseMutationResult> {
     try {
-      const response = await apiClient.patch<QuizPurchase>(
-        `${this.purchaseEndpoint}/${purchaseId}/approve`,
+      const response = await apiClient.post<QuizPurchase>(
+        `${this.adminEndpoint}/${purchaseId}/approve`,
       );
 
       return { success: true, data: response.data ?? undefined };
@@ -113,10 +216,11 @@ class PurchaseService {
     }
   }
 
-  async rejectPurchase(purchaseId: number): Promise<PurchaseMutationResult> {
+  async rejectPurchase(purchaseId: number, reason?: string): Promise<PurchaseMutationResult> {
     try {
-      const response = await apiClient.patch<QuizPurchase>(
-        `${this.purchaseEndpoint}/${purchaseId}/reject`,
+      const query = reason ? `?reason=${encodeURIComponent(reason)}` : '';
+      const response = await apiClient.post<QuizPurchase>(
+        `${this.adminEndpoint}/${purchaseId}/reject${query}`,
       );
 
       return { success: true, data: response.data ?? undefined };
@@ -130,7 +234,7 @@ class PurchaseService {
 
   async processAdminPayment(
     id: string,
-    type: ModuleType,
+    type: string,
     payload: AdminPaymentRequest,
   ): Promise<PurchaseMutationResult> {
     try {
@@ -149,37 +253,11 @@ class PurchaseService {
   }
 
   async approveManualPayment(purchaseId: number): Promise<PurchaseMutationResult> {
-    try {
-      const response = await apiClient.post<QuizPurchase>(
-        `${this.paymentEndpoint}/approve/${purchaseId}`,
-      );
-
-      return { success: true, data: response.data ?? undefined };
-    } catch (error) {
-      return {
-        success: false,
-        error: extractErrorMessage(error, 'Failed to approve manual payment'),
-      };
-    }
+    return this.approvePurchase(purchaseId);
   }
 
-  async rejectManualPayment(
-    purchaseId: number,
-    reason?: string,
-  ): Promise<PurchaseMutationResult> {
-    try {
-      const query = reason ? `?reason=${encodeURIComponent(reason)}` : '';
-      const response = await apiClient.post<QuizPurchase>(
-        `${this.paymentEndpoint}/reject/${purchaseId}${query}`,
-      );
-
-      return { success: true, data: response.data ?? undefined };
-    } catch (error) {
-      return {
-        success: false,
-        error: extractErrorMessage(error, 'Failed to reject manual payment'),
-      };
-    }
+  async rejectManualPayment(purchaseId: number, reason?: string): Promise<PurchaseMutationResult> {
+    return this.rejectPurchase(purchaseId, reason);
   }
 }
 

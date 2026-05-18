@@ -16,9 +16,9 @@ import { MathRenderer } from '@/components/ui/MathRenderer';
 import { MathPreview } from '@/components/ui/MathPreview';
 import { MathToolbar } from '@/components/ui/MathToolbar';
 import { useQuestions } from '@/hooks/useQuestions';
-import { useCategories } from '@/hooks/useCategories';
 import { questionService } from '@/services/question.service';
 import { questionSetService } from '@/services/questionSet.service';
+import { categoryService } from '@/services/category.service';
 import { toast } from '@/lib/utils/toast';
 import type { Question, QuestionFormData } from '@/types/quiz.types';
 
@@ -27,9 +27,12 @@ export default function QuestionsPage() {
   const questionSetId = parseInt(params.id as string);
 
   const { questions, loading, refetch } = useQuestions(questionSetId);
-  const { categories } = useCategories({ page: 0, size: 100 });
 
   const [questionSetName, setQuestionSetName] = useState<string>('');
+  const [questionSetEntranceTypeId, setQuestionSetEntranceTypeId] = useState<number | null>(null);
+  const [questionSetEntranceTypeName, setQuestionSetEntranceTypeName] = useState<string | null>(null);
+  const [categoryOptions, setCategoryOptions] = useState<{ id: number; categoryName: string }[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedQuestion, setSelectedQuestion] = useState<Question | null>(null);
@@ -78,10 +81,62 @@ export default function QuestionsPage() {
       const set = await questionSetService.getQuestionSetById(questionSetId);
       if (set) {
         setQuestionSetName(set.setName);
+        const questionSetWithEntrance = set as typeof set & {
+          entranceType?: {
+            id?: number | string;
+            entranceTypeId?: number | string;
+            entranceName?: string;
+            name?: string;
+          } | null;
+        };
+        const entranceTypeId = questionSetWithEntrance.entranceTypeId
+          ? Number(questionSetWithEntrance.entranceTypeId)
+          : questionSetWithEntrance.entranceType?.id
+            ? Number(questionSetWithEntrance.entranceType.id)
+            : questionSetWithEntrance.entranceType?.entranceTypeId
+              ? Number(questionSetWithEntrance.entranceType.entranceTypeId)
+              : null;
+        const entranceTypeName = questionSetWithEntrance.entranceTypeName
+          ?? questionSetWithEntrance.entranceType?.entranceName
+          ?? questionSetWithEntrance.entranceType?.name
+          ?? null;
+
+        setQuestionSetEntranceTypeId(entranceTypeId);
+        setQuestionSetEntranceTypeName(entranceTypeName);
+        setCategoriesLoading(true);
+
+        const categoryResult = await categoryService.getCategories({
+          page: 0,
+          size: 500,
+          sortBy: 'categoryName',
+          sortDir: 'asc',
+        });
+
+        const matchingCategories = categoryResult.categories.filter((cat) => {
+          if (entranceTypeId) {
+            return Number(cat.entranceTypeId) === entranceTypeId;
+          }
+
+          if (entranceTypeName) {
+            return cat.entranceTypeName === entranceTypeName;
+          }
+
+          return false;
+        });
+
+        setCategoryOptions(
+          matchingCategories.map((cat) => ({
+            id: cat.categoryId,
+            categoryName: cat.categoryName,
+          })),
+        );
+        setCategoriesLoading(false);
       }
     };
     loadQuestionSet();
   }, [questionSetId]);
+
+
 
   const handleCreate = () => {
     setFormData({
@@ -508,8 +563,15 @@ export default function QuestionsPage() {
               <Select
                 label="Category"
                 options={[
-                  { value: '', label: 'Select Category' },
-                  ...categories.map((cat) => ({
+                  {
+                    value: '',
+                    label: categoriesLoading
+                      ? 'Loading categories...'
+                      : categoryOptions.length > 0
+                        ? 'Select Category'
+                        : 'No categories for this entrance type',
+                  },
+                  ...categoryOptions.map((cat) => ({
                     value: cat.id.toString(),
                     label: cat.categoryName,
                   })),
