@@ -6,7 +6,7 @@ import { useQuizPurchases } from '@/hooks/useQuizPurchases';
 import { purchaseService } from '@/services/purchase.service';
 import { toast } from '@/lib/utils/toast';
 import { useState, useEffect } from 'react';
-import type { PurchaseStatus, QuizPurchase } from '@/types/purchase.types';
+import type { PurchaseStatus, QuizPurchase, ModuleType, PaymentMethod } from '@/types/purchase.types';
 
 export default function QuizPurchasesPage() {
   const [statusFilter, setStatusFilter] = useState<PurchaseStatus | ''>('');
@@ -14,6 +14,14 @@ export default function QuizPurchasesPage() {
   const [selectedPurchase, setSelectedPurchase] = useState<QuizPurchase | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [imageModalOpen, setImageModalOpen] = useState(false);
+  const [adminPaymentOpen, setAdminPaymentOpen] = useState(false);
+  const [adminPaymentForm, setAdminPaymentForm] = useState({
+    id: '',
+    type: 'SUBSCRIPTION' as ModuleType,
+    amount: '',
+    paymentMethod: 'MANUAL' as PaymentMethod,
+    userEmail: '',
+  });
   
   const { purchases, loading, error, pagination, goToPage, updateFilters, refetch } = useQuizPurchases({
     page: 0,
@@ -103,18 +111,108 @@ export default function QuizPurchasesPage() {
     }
   };
 
+  const handleApproveManualPayment = async () => {
+    if (!selectedPurchase) return;
+
+    setActionLoading(true);
+    try {
+      const result = await purchaseService.approveManualPayment(selectedPurchase.purchaseId);
+
+      if (result.success) {
+        toast.success('Manual payment approved successfully');
+        setSelectedPurchase(null);
+        refetch();
+      } else {
+        toast.error(result.error || 'Failed to approve manual payment');
+      }
+    } catch (error) {
+      console.error('Error approving manual payment:', error);
+      toast.error('An unexpected error occurred');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRejectManualPayment = async () => {
+    if (!selectedPurchase) return;
+
+    const reason = window.prompt('Reason for rejecting this manual payment?') || undefined;
+
+    setActionLoading(true);
+    try {
+      const result = await purchaseService.rejectManualPayment(selectedPurchase.purchaseId, reason);
+
+      if (result.success) {
+        toast.success('Manual payment rejected successfully');
+        setSelectedPurchase(null);
+        refetch();
+      } else {
+        toast.error(result.error || 'Failed to reject manual payment');
+      }
+    } catch (error) {
+      console.error('Error rejecting manual payment:', error);
+      toast.error('An unexpected error occurred');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleAdminPaymentSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const amount = Number(adminPaymentForm.amount);
+    if (!adminPaymentForm.id.trim()) {
+      toast.warning('Module ID or user email is required');
+      return;
+    }
+    if (!amount || amount <= 0) {
+      toast.warning('Amount must be greater than 0');
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      const result = await purchaseService.processAdminPayment(
+        adminPaymentForm.id.trim(),
+        adminPaymentForm.type,
+        {
+          amount,
+          paymentMethod: adminPaymentForm.paymentMethod,
+          userEmail: adminPaymentForm.userEmail.trim() || undefined,
+        },
+      );
+
+      if (result.success) {
+        toast.success('Admin payment recorded successfully');
+        setAdminPaymentOpen(false);
+        setAdminPaymentForm({
+          id: '',
+          type: 'SUBSCRIPTION',
+          amount: '',
+          paymentMethod: 'MANUAL',
+          userEmail: '',
+        });
+        refetch();
+      } else {
+        toast.error(result.error || 'Failed to record admin payment');
+      }
+    } catch (error) {
+      console.error('Error recording admin payment:', error);
+      toast.error('An unexpected error occurred');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const getStatusBadgeColor = (status: PurchaseStatus) => {
     const colors = {
       PAID: { bg: 'rgba(46, 125, 50, 0.1)', text: 'var(--color-success)', border: 'rgba(46, 125, 50, 0.2)' },
-      PAYMENT_VERIFIED: { bg: 'rgba(46, 125, 50, 0.1)', text: 'var(--color-success)', border: 'rgba(46, 125, 50, 0.2)' },
       PAYMENT_RECEIVED_ADMIN_APPROVAL_PENDING: { bg: 'rgba(249, 168, 37, 0.1)', text: 'var(--color-warning)', border: 'rgba(249, 168, 37, 0.2)' },
       PENDING: { bg: 'rgba(249, 168, 37, 0.1)', text: 'var(--color-warning)', border: 'rgba(249, 168, 37, 0.2)' },
-      UNPAID: { bg: 'var(--color-gray-100)', text: 'var(--color-gray-600)', border: 'var(--color-gray-200)' },
       FAILED: { bg: 'rgba(211, 47, 47, 0.1)', text: 'var(--color-error)', border: 'rgba(211, 47, 47, 0.2)' },
-      ABORTED: { bg: 'rgba(211, 47, 47, 0.1)', text: 'var(--color-error)', border: 'rgba(211, 47, 47, 0.2)' },
-      CANCELLED_BY_ADMIN: { bg: 'rgba(211, 47, 47, 0.1)', text: 'var(--color-error)', border: 'rgba(211, 47, 47, 0.2)' },
+      REJECTED_BY_ADMIN: { bg: 'rgba(211, 47, 47, 0.1)', text: 'var(--color-error)', border: 'rgba(211, 47, 47, 0.2)' },
     };
-    return colors[status] || colors.UNPAID;
+    return colors[status] || colors.PENDING;
   };
 
   const formatDate = (dateString: string | null | undefined) => {
@@ -136,9 +234,16 @@ export default function QuizPurchasesPage() {
               Quiz Purchases
             </h1>
             <p className="text-sm md:text-base text-gray-500 mt-1">
-              Manage and monitor all quiz set purchases.
+              Manage quiz purchases, manual approvals, and admin-recorded payments.
             </p>
           </div>
+          <button
+            onClick={() => setAdminPaymentOpen(true)}
+            className="w-full sm:w-auto px-4 py-2 text-white rounded-lg transition-colors text-sm font-semibold shadow-sm"
+            style={{ backgroundColor: 'var(--color-brand-blue)' }}
+          >
+            Record Admin Payment
+          </button>
         </div>
 
         <div className="bg-white border border-gray-200 rounded-xl p-4 md:p-6 mb-6 shadow-sm">
@@ -162,13 +267,10 @@ export default function QuizPurchasesPage() {
               >
                 <option value="">All Statuses</option>
                 <option value="PAID">Paid</option>
-                <option value="UNPAID">Unpaid</option>
                 <option value="PENDING">Pending</option>
-                <option value="PAYMENT_RECEIVED_ADMIN_APPROVAL_PENDING">Awaiting Approval</option>
-                <option value="PAYMENT_VERIFIED">Payment Verified</option>
-                <option value="ABORTED">Aborted</option>
+                <option value="PAYMENT_RECEIVED_ADMIN_APPROVAL_PENDING">Awaiting Admin Approval</option>
                 <option value="FAILED">Failed</option>
-                <option value="CANCELLED_BY_ADMIN">Cancelled by Admin</option>
+                <option value="REJECTED_BY_ADMIN">Rejected by Admin</option>
               </select>
             </div>
             <div className="sm:col-span-2 lg:col-span-1 flex items-end gap-2">
@@ -252,8 +354,9 @@ export default function QuizPurchasesPage() {
                             </div>
                           </td>
                           <td className="px-6 py-4">
-                            <div className="font-medium text-gray-900">{purchase.setName || 'N/A'}</div>
+                            <div className="font-medium text-gray-900">{purchase.setName || purchase.templateName || 'N/A'}</div>
                             {purchase.setId && <div className="text-xs text-gray-500">Set ID: {purchase.setId}</div>}
+                            {purchase.templateId && <div className="text-xs text-gray-500">Template ID: {purchase.templateId}</div>}
                           </td>
                           <td className="px-6 py-4">
                             <span className="font-semibold text-gray-900">
@@ -343,8 +446,8 @@ export default function QuizPurchasesPage() {
 
                       <div className="space-y-2 mb-3">
                         <div className="flex items-start justify-between text-sm gap-2">
-                          <span className="text-gray-500 flex-shrink-0">Quiz Set:</span>
-                          <span className="font-medium text-gray-900 text-right break-words">{purchase.setName || 'N/A'}</span>
+                          <span className="text-gray-500 flex-shrink-0">Quiz Item:</span>
+                          <span className="font-medium text-gray-900 text-right break-words">{purchase.setName || purchase.templateName || 'N/A'}</span>
                         </div>
                         <div className="flex items-center justify-between text-sm">
                           <span className="text-gray-500">Amount:</span>
@@ -517,14 +620,21 @@ export default function QuizPurchasesPage() {
                   </div>
 
                   <div>
-                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Quiz Set Name</label>
-                    <p className="mt-1 text-gray-900">{selectedPurchase.setName || 'N/A'}</p>
+                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Quiz Item</label>
+                    <p className="mt-1 text-gray-900">{selectedPurchase.setName || selectedPurchase.templateName || 'N/A'}</p>
                   </div>
 
                   {selectedPurchase.setId && (
                     <div>
                       <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Quiz Set ID</label>
                       <p className="mt-1 text-gray-900">{selectedPurchase.setId}</p>
+                    </div>
+                  )}
+
+                  {selectedPurchase.templateId && (
+                    <div>
+                      <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Template ID</label>
+                      <p className="mt-1 text-gray-900 font-mono text-sm break-all">{selectedPurchase.templateId}</p>
                     </div>
                   )}
 
@@ -583,19 +693,7 @@ export default function QuizPurchasesPage() {
                       className="w-full px-4 py-3 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium flex items-center justify-center gap-2"
                       style={{ backgroundColor: 'var(--color-success)' }}
                     >
-                      {actionLoading ? (
-                        <>
-                          <div className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                          <span>Processing...</span>
-                        </>
-                      ) : (
-                        <>
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                          </svg>
-                          <span>Approve Purchase</span>
-                        </>
-                      )}
+                      {actionLoading ? 'Processing...' : 'Approve Quiz Purchase'}
                     </button>
                     <button
                       onClick={handleRejectPurchase}
@@ -603,20 +701,33 @@ export default function QuizPurchasesPage() {
                       className="w-full px-4 py-3 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium flex items-center justify-center gap-2"
                       style={{ backgroundColor: 'var(--color-error)' }}
                     >
-                      {actionLoading ? (
-                        <>
-                          <div className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                          <span>Processing...</span>
-                        </>
-                      ) : (
-                        <>
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                          <span>Reject Purchase</span>
-                        </>
-                      )}
+                      {actionLoading ? 'Processing...' : 'Reject Quiz Purchase'}
                     </button>
+                    {selectedPurchase.paymentMethod === 'MANUAL' && (
+                      <>
+                        <div className="flex items-center gap-3 py-1">
+                          <div className="h-px bg-gray-200 flex-1" />
+                          <span className="text-xs font-semibold text-gray-400 uppercase">Manual Payment API</span>
+                          <div className="h-px bg-gray-200 flex-1" />
+                        </div>
+                        <button
+                          onClick={handleApproveManualPayment}
+                          disabled={actionLoading}
+                          className="w-full px-4 py-3 border rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                          style={{ color: 'var(--color-success)', borderColor: 'rgba(46, 125, 50, 0.35)' }}
+                        >
+                          Approve Manual Payment
+                        </button>
+                        <button
+                          onClick={handleRejectManualPayment}
+                          disabled={actionLoading}
+                          className="w-full px-4 py-3 border rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                          style={{ color: 'var(--color-error)', borderColor: 'rgba(211, 47, 47, 0.35)' }}
+                        >
+                          Reject Manual Payment
+                        </button>
+                      </>
+                    )}
                   </div>
                 )}
 
@@ -624,9 +735,9 @@ export default function QuizPurchasesPage() {
                   <div className="pt-6 border-t border-gray-200">
                     <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-center">
                       <p className="text-sm text-gray-600">
-                        {selectedPurchase.purchaseStatus === 'PAID' || selectedPurchase.purchaseStatus === 'PAYMENT_VERIFIED' 
+                        {selectedPurchase.purchaseStatus === 'PAID'
                           ? 'This purchase has already been approved'
-                          : selectedPurchase.purchaseStatus === 'CANCELLED_BY_ADMIN'
+                          : selectedPurchase.purchaseStatus === 'REJECTED_BY_ADMIN'
                           ? 'This purchase has been rejected'
                           : 'No actions available for this purchase status'}
                       </p>
@@ -636,6 +747,122 @@ export default function QuizPurchasesPage() {
               </div>
             </div>
           </>
+        )}
+
+        {adminPaymentOpen && (
+          <div className="fixed inset-0 bg-black bg-opacity-40 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+              <div className="sticky top-0 bg-white border-b border-gray-200 px-5 sm:px-6 py-4 flex items-center justify-between rounded-t-2xl">
+                <div>
+                  <h3 className="text-lg sm:text-xl font-bold" style={{ color: 'var(--color-brand-navy)' }}>
+                    Record Admin Payment
+                  </h3>
+                  <p className="text-xs sm:text-sm text-gray-500 mt-1">
+                    POST /payments/admin/pay/{'{id}'}/{'{type}'}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setAdminPaymentOpen(false)}
+                  disabled={actionLoading}
+                  className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-50"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <form onSubmit={handleAdminPaymentSubmit} className="p-5 sm:p-6 space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Module Type</label>
+                    <select
+                      value={adminPaymentForm.type}
+                      onChange={(e) => setAdminPaymentForm({ ...adminPaymentForm, type: e.target.value as ModuleType })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent text-sm"
+                      disabled={actionLoading}
+                    >
+                      <option value="QUESTION_SET">Question Set</option>
+                      <option value="QUIZ_TEMPLATE">Quiz Template</option>
+                      <option value="TRAINING">Training</option>
+                      <option value="SUBSCRIPTION">Subscription</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Module ID</label>
+                    <input
+                      type="text"
+                      value={adminPaymentForm.id}
+                      onChange={(e) => setAdminPaymentForm({ ...adminPaymentForm, id: e.target.value })}
+                      placeholder="ID or user email for subscription"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent text-sm"
+                      disabled={actionLoading}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Amount</label>
+                    <input
+                      type="number"
+                      min="1"
+                      step="0.01"
+                      value={adminPaymentForm.amount}
+                      onChange={(e) => setAdminPaymentForm({ ...adminPaymentForm, amount: e.target.value })}
+                      placeholder="500.00"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent text-sm"
+                      disabled={actionLoading}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Payment Method</label>
+                    <select
+                      value={adminPaymentForm.paymentMethod}
+                      onChange={(e) => setAdminPaymentForm({ ...adminPaymentForm, paymentMethod: e.target.value as PaymentMethod })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent text-sm"
+                      disabled={actionLoading}
+                    >
+                      <option value="ESEWA">ESEWA</option>
+                      <option value="KHALTI">KHALTI</option>
+                      <option value="MANUAL">MANUAL</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">User Email optional</label>
+                  <input
+                    type="email"
+                    value={adminPaymentForm.userEmail}
+                    onChange={(e) => setAdminPaymentForm({ ...adminPaymentForm, userEmail: e.target.value })}
+                    placeholder="user@example.com"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent text-sm"
+                    disabled={actionLoading}
+                  />
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setAdminPaymentOpen(false)}
+                    disabled={actionLoading}
+                    className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 font-medium"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={actionLoading}
+                    className="flex-1 px-4 py-2 text-white rounded-lg transition-colors disabled:opacity-50 font-medium"
+                    style={{ backgroundColor: 'var(--color-brand-blue)' }}
+                  >
+                    {actionLoading ? 'Recording...' : 'Record Payment'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
         )}
 
         {imageModalOpen && selectedPurchase?.paymentProof && (
