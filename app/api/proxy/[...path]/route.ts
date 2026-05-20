@@ -69,7 +69,12 @@ async function proxyRequest(
       'dashboard'
     ];
     
-    const needsV1Prefix = quizEndpoints.some(endpoint => path.startsWith(endpoint));
+    const needsV1Prefix = quizEndpoints.some(endpoint => 
+      path === endpoint || 
+      path.startsWith(`${endpoint}/`) || 
+      path.includes(`/${endpoint}`) ||
+      path.includes(`/${endpoint}/`)
+    );
     const apiPath = needsV1Prefix ? `/api/v1/${path}` : `/${path}`;
     const url = `${API_BASE_URL}${apiPath}${queryString}`;
     
