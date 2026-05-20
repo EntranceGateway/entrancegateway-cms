@@ -58,15 +58,23 @@ async function proxyRequest(
     const quizEndpoints = [
       'auth',
       'audit-logs',
+      'blogs',
       'categories',
+      'colleges',
       'courses', 
       'entrance-types',
+      'notes',
+      'old-question-collections',
       'purchases',
       'question-sets',
       'questions',
       'quiz-attempts',
       'quiz-templates',
+      'syllabus',
       'topics',
+      'training-enrollments',
+      'trainings',
+      'user',
       'dashboard'
     ];
     
