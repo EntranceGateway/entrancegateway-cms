@@ -1,10 +1,55 @@
 'use client';
 
+import { useState } from 'react';
 import { ProtectedRoute } from '@/components/providers/ProtectedRoute';
 import { DashboardLayout } from '@/components/layouts/DashboardLayout';
 import { StatCard } from '@/components/ui/StatCard';
+import { toast } from '@/lib/utils/toast';
+
+const CHATBOT_SOURCE_TYPES = [
+  { value: 'course', label: 'Courses' },
+  { value: 'college', label: 'Colleges' },
+  { value: 'syllabus', label: 'Syllabus' },
+  { value: 'note', label: 'Notes' },
+  { value: 'old_question', label: 'Old Questions' },
+  { value: 'training', label: 'Trainings' },
+  { value: 'question_set', label: 'Question Sets' },
+  { value: 'question', label: 'Questions' },
+];
 
 export default function DashboardPage() {
+  const [chatbotSourceType, setChatbotSourceType] = useState('course');
+  const [isSyncingChatbot, setIsSyncingChatbot] = useState(false);
+
+  const handleChatbotWebhookSync = async () => {
+    setIsSyncingChatbot(true);
+
+    try {
+      const response = await fetch('/api/chatbot/webhook-sync', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ source_type: chatbotSourceType }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to trigger chatbot sync');
+      }
+
+      toast.success('Chatbot sync triggered', {
+        description: `${CHATBOT_SOURCE_TYPES.find(source => source.value === chatbotSourceType)?.label || chatbotSourceType} refresh webhook accepted.`,
+      });
+    } catch (error) {
+      toast.error('Chatbot sync failed', {
+        description: error instanceof Error ? error.message : 'Unable to call chatbot webhook.',
+      });
+    } finally {
+      setIsSyncingChatbot(false);
+    }
+  };
+
   return (
     <ProtectedRoute>
       <DashboardLayout>
@@ -17,8 +62,56 @@ export default function DashboardPage() {
             Dashboard Overview
           </h1>
           <p className="text-sm md:text-base text-gray-500 mt-1">
-            Welcome back. Here's what's happening today at EntranceGateway.
+            Welcome back. Here&apos;s what&apos;s happening today at EntranceGateway.
           </p>
+        </div>
+
+        <div className="mb-6 md:mb-8 bg-white rounded-xl border border-gray-200 shadow-sm p-4 md:p-6">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div>
+              <h2
+                className="text-base md:text-lg font-bold"
+                style={{ color: 'var(--color-brand-navy)' }}
+              >
+                Chatbot Knowledge Sync
+              </h2>
+              <p className="text-sm text-gray-500 mt-1">
+                Trigger the chatbot webhook to refresh a selected knowledge source.
+              </p>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+              <label className="sr-only" htmlFor="chatbot-source-type">
+                Chatbot source type
+              </label>
+              <select
+                id="chatbot-source-type"
+                value={chatbotSourceType}
+                onChange={(event) => setChatbotSourceType(event.target.value)}
+                disabled={isSyncingChatbot}
+                className="h-10 min-w-48 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-gray-100"
+              >
+                {CHATBOT_SOURCE_TYPES.map((sourceType) => (
+                  <option key={sourceType.value} value={sourceType.value}>
+                    {sourceType.label}
+                  </option>
+                ))}
+              </select>
+
+              <button
+                type="button"
+                onClick={handleChatbotWebhookSync}
+                disabled={isSyncingChatbot}
+                className="h-10 inline-flex items-center justify-center gap-2 rounded-lg px-4 text-sm font-bold text-white transition-colors disabled:cursor-not-allowed disabled:opacity-70"
+                style={{ backgroundColor: 'var(--color-brand-navy)' }}
+              >
+                <svg className={`w-4 h-4 ${isSyncingChatbot ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v6h6M20 20v-6h-6M20 8a8 8 0 00-14.9-4M4 16a8 8 0 0014.9 4" />
+                </svg>
+                {isSyncingChatbot ? 'Syncing' : 'Trigger Sync'}
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Stats Grid */}
@@ -180,7 +273,7 @@ export default function DashboardPage() {
                     >
                       Bulk upload failed
                     </span>{' '}
-                    for CSV "October_Leads.csv"
+                    for CSV &quot;October_Leads.csv&quot;
                   </>
                 }
                 time="3 hours ago"
@@ -191,7 +284,7 @@ export default function DashboardPage() {
                 iconColor="var(--color-brand-blue)"
                 text={
                   <>
-                    New blog post <span className="italic">"Top Engineering Trends"</span> published
+                    New blog post <span className="italic">&quot;Top Engineering Trends&quot;</span> published
                   </>
                 }
                 time="5 hours ago"
