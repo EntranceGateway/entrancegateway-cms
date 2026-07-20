@@ -20,6 +20,56 @@ const CHATBOT_SOURCE_TYPES = [
 export default function DashboardPage() {
   const [chatbotSourceType, setChatbotSourceType] = useState('course');
   const [isSyncingChatbot, setIsSyncingChatbot] = useState(false);
+  const [isRefreshingAll, setIsRefreshingAll] = useState(false);
+
+  const handleChatbotRefreshAll = async () => {
+    if (
+      !window.confirm(
+        'Re-index every source type in the chatbot knowledge base?\n\n' +
+          'This re-fetches and re-embeds all content and can take several minutes. ' +
+          'The chatbot will respond slowly while it runs, so prefer off-peak hours.'
+      )
+    ) {
+      return;
+    }
+
+    setIsRefreshingAll(true);
+    toast.info('Full re-index started', {
+      description: 'This can take several minutes. You can leave this page open.',
+    });
+
+    try {
+      const response = await fetch('/api/chatbot/refresh-all', { method: 'POST' });
+      const data = await response.json();
+
+      if (response.status === 504 && data.timedOut) {
+        toast.warning('Still running', { description: data.message });
+        return;
+      }
+
+      if (!response.ok || !data.success) {
+        const failed = data.errors?.length
+          ? data.errors.map((e: { source_type: string }) => e.source_type).join(', ')
+          : null;
+        throw new Error(
+          failed
+            ? `Failed for: ${failed}. ${data.errors[0]?.error ?? ''}`
+            : data.message || 'Full re-index failed'
+        );
+      }
+
+      const s = data.summary;
+      toast.success('Chatbot knowledge base re-indexed', {
+        description: `${s.fetched} records fetched, ${s.upserted} chunks indexed, ${s.skipped} unchanged.`,
+      });
+    } catch (error) {
+      toast.error('Full re-index failed', {
+        description: error instanceof Error ? error.message : 'Unable to reach the chatbot.',
+      });
+    } finally {
+      setIsRefreshingAll(false);
+    }
+  };
 
   const handleChatbotWebhookSync = async () => {
     setIsSyncingChatbot(true);
@@ -101,7 +151,7 @@ export default function DashboardPage() {
               <button
                 type="button"
                 onClick={handleChatbotWebhookSync}
-                disabled={isSyncingChatbot}
+                disabled={isSyncingChatbot || isRefreshingAll}
                 className="h-10 inline-flex items-center justify-center gap-2 rounded-lg px-4 text-sm font-bold text-white transition-colors disabled:cursor-not-allowed disabled:opacity-70"
                 style={{ backgroundColor: 'var(--color-brand-navy)' }}
               >
@@ -109,6 +159,19 @@ export default function DashboardPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v6h6M20 20v-6h-6M20 8a8 8 0 00-14.9-4M4 16a8 8 0 0014.9 4" />
                 </svg>
                 {isSyncingChatbot ? 'Syncing' : 'Trigger Sync'}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleChatbotRefreshAll}
+                disabled={isSyncingChatbot || isRefreshingAll}
+                title="Re-index every source type. Takes several minutes."
+                className="h-10 inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 text-sm font-bold text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                <svg className={`w-4 h-4 ${isRefreshingAll ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                </svg>
+                {isRefreshingAll ? 'Re-indexing' : 'Re-index All'}
               </button>
             </div>
           </div>
