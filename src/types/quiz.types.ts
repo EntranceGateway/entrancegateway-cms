@@ -42,7 +42,7 @@ export interface CategoryFormData {
 
 export interface CategoryBatchFailure {
     index: number;
-    categoryName: string;
+    identifier: string;
     error: string;
 }
 

@@ -44,7 +44,7 @@ export type TopicCreatePayload = {
 
 export interface TopicBatchFailure {
     index: number;
-    topicName: string;
+    identifier: string;
     error: string;
 }
 

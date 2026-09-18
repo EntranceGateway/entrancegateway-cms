@@ -104,13 +104,26 @@ class QuizTemplateService {
 
   async createQuizTemplate(payload: CreateQuizTemplateRequest): Promise<ServiceResult> {
     try {
-      const response = await apiClient.post<QuizTemplateMutationResponse>(this.endpoint, payload);
+      const response = await apiClient.post<{
+        created: QuizTemplateMutationResponse[];
+        failures: Array<{ index: number; identifier: string; error: string }>;
+      }>(this.endpoint, [payload]);
 
       if (!response?.data) {
         return { success: false, error: 'Invalid response from server' };
       }
 
-      return { success: true, data: response.data };
+      const failure = response.data.failures?.[0];
+      if (failure) {
+        return { success: false, error: failure.error };
+      }
+
+      const created = response.data.created?.[0];
+      if (!created) {
+        return { success: false, error: 'Quiz template was not created' };
+      }
+
+      return { success: true, data: created };
     } catch (error: unknown) {
       const extracted = extractApiError(error, 'Failed to create quiz template');
       return {

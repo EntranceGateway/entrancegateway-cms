@@ -281,7 +281,11 @@ export default function BlogListPage() {
                             </span>
                           </td>
                           <td className="px-4 md:px-6 py-4 text-sm text-gray-600">
-                            {blog.createdDate}
+                            {new Date(blog.createdDate).toLocaleDateString('en-US', {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric',
+                            })}
                           </td>
                           <td className="px-4 md:px-6 py-4 text-right space-x-2">
                             <button className="p-1.5 text-gray-400 transition-colors rounded hover:bg-brand-blue/5" style={{ color: 'var(--color-gray-400)' }}
