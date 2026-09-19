@@ -1,10 +1,13 @@
 # ============================================================================
-#  EntranceGateway CMS — Production Docker Compose
+#  EntranceGateway CMS — Production Docker Compose (COOLIFY)
+#
+#  No database here — this app calls entrance-backend over HTTP only
+#  (API_BASE_URL, server-side, via the Next.js proxy route at /api/proxy).
+#  Coolify builds from ./Dockerfile (no registry), so NO `container_name:`.
 # ============================================================================
 
 services:
   cms:
-    container_name: entrancegateway-cms
     build:
       context: .
       dockerfile: Dockerfile
@@ -16,14 +19,14 @@ services:
     env_file:
       - .env.production
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3000"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 15s
     logging:
       driver: json-file
       options:
         max-size: "10m"
         max-file: "3"
+    networks:
+      - coolify
+
+networks:
+  coolify:
+    external: true
